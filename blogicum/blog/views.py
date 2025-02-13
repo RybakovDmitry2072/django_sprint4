@@ -3,10 +3,11 @@ from django.views.generic import ListView, DetailView, UpdateView, CreateView, F
 from django.contrib.auth.views import PasswordChangeView
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect
-from .forms import CommentsForm
+from .forms import CommentsForm, DynamicPostForm
 from .models import Comments, Post, Category
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
 
@@ -24,14 +25,27 @@ class IndexListView(ListView):
             category__is_published=True
         )
 
-    # переделать
 
+class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Post
+    fields = '__all__'
+    template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'  
+
+    def test_func(self):
+        post = self.get_object()
+        return self.request.user == post.author  
+
+    def handle_no_permission(self):
+        return redirect('blog:post_detail', post_id=self.get_object().pk)
+    
+    def get_success_url(self):
+        return reverse('blog:post_detail', kwargs={'post_id': self.object.pk})
 
 
 class DeletePostView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Post
-    template_name = 'blog/detail.html'
-    context_object_name = 'post'
+    template_name = 'blog/create.html'
     pk_url_kwarg = 'post_id'
 
     def test_func(self):
@@ -42,7 +56,14 @@ class DeletePostView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return redirect('blog:post_detail', post_id=self.get_object().pk)
 
     def get_success_url(self):
-        return reverse('blog:index')
+        return reverse('blog:profile', kwargs={'username': self.get_object().author.username})
+    
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = DynamicPostForm(instance=self.get_object())
+        return context
+    
 
 class DeleteCommentView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Comments
@@ -98,9 +119,9 @@ class CreatePostView(LoginRequiredMixin, CreateView):
     model = Post
     fields = '__all__'
     template_name = 'blog/create.html'
-
+    
     def get_success_url(self):
-        return reverse('accounts/profile', kwargs={'username': self.request.user.username})
+        return reverse('blog:profile', kwargs={'username': self.request.user.username})
 
 
 class CategoryListView(ListView):
@@ -147,21 +168,6 @@ class PostDetailView(DetailView):
             raise Http404("Post not found")
         return post
     
-    
-    
-class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
-    model = Post
-    fields = '__all__'
-    template_name = 'blog/create.html'  # Используем тот же шаблон, что и для создания поста
-    context_object_name = 'post'
-
-    def test_func(self):
-        post = self.get_object()
-        return self.request.user == post.author  # Проверяем, является ли текущий пользователь автором поста
-
-    def handle_no_permission(self):
-        return redirect('post_detail', pk=self.get_object().pk)  # Перенаправляем на страницу просмотра поста, если у пользователя нет прав на редактирование
-
 
 class ProfileDetailView(DetailView):
     model = User  

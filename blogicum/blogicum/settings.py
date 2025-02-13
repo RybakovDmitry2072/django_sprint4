@@ -17,6 +17,8 @@ ALLOWED_HOSTS = []
 
 LOGIN_URL = '/auth/login/'
 
+LOGIN_REDIRECT_URL = 'blog:index'
+
 MEDIA_ROOT = BASE_DIR / 'media' 
 
 # Application definition
